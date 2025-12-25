@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lab_16"
+    namespace = "com.example.lab16_1"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.lab_16"
+        applicationId = "com.example.lab16_1"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -34,9 +34,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
-    }
-    buildFeatures {
-        viewBinding = true
     }
 }
 

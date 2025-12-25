@@ -1,38 +1,30 @@
-package com.example.lab16_1
+package com.example.lab_16
 
+import android.annotation.SuppressLint
 import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ListView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.example.lab_16.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
     private var items: ArrayList<String> = ArrayList()
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var dbrw: SQLiteDatabase
+    private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         // 取得資料庫實體
         dbrw = MyDBHelper(this).writableDatabase
         // 宣告Adapter並連結ListView
         adapter = ArrayAdapter(this,
             android.R.layout.simple_list_item_1, items)
-        findViewById<ListView>(R.id.listView).adapter = adapter
+        binding.listView.adapter = adapter
         // 設定監聽器
         setListener()
     }
@@ -44,73 +36,79 @@ class MainActivity : AppCompatActivity() {
 
     // 設定監聽器
     private fun setListener() {
-        val edBook = findViewById<EditText>(R.id.edBook)
-        val edPrice = findViewById<EditText>(R.id.edPrice)
-
-        findViewById<Button>(R.id.btnInsert).setOnClickListener {
+        binding.btnInsert.setOnClickListener {
+            val book = binding.edBook.text.toString()
+            val price = binding.edPrice.text.toString()
             // 判斷是否有填入書名或價格
-            if (edBook.length() < 1 || edPrice.length() < 1)
+            if (book.isEmpty() || price.isEmpty())
                 showToast("欄位請勿留空")
             else
                 try {
                     // 新增一筆書籍紀錄於myTable資料表
                     dbrw.execSQL(
                         "INSERT INTO myTable(book, price) VALUES(?,?)",
-                        arrayOf(edBook.text.toString(),
-                            edPrice.text.toString())
+                        arrayOf(book, price)
                     )
-                    showToast("新增:${edBook.text},價格:${edPrice.text}")
+                    showToast("新增:$book, 價格:$price")
                     cleanEditText()
                 } catch (e: Exception) {
                     showToast("新增失敗:$e")
                 }
         }
-        findViewById<Button>(R.id.btnUpdate).setOnClickListener {
+        binding.btnUpdate.setOnClickListener {
+            val book = binding.edBook.text.toString()
+            val price = binding.edPrice.text.toString()
             // 判斷是否有填入書名或價格
-            if (edBook.length() < 1 || edPrice.length() < 1)
+            if (book.isEmpty() || price.isEmpty())
                 showToast("欄位請勿留空")
             else
                 try {
                     // 尋找相同書名的紀錄並更新price欄位的值
-                    dbrw.execSQL("UPDATE myTable SET price = ${edPrice.text} WHERE book LIKE '${edBook.text}'")
-                    showToast("更新:${edBook.text},價格:${edPrice.text}")
+                    dbrw.execSQL("UPDATE myTable SET price = ? WHERE book LIKE ?", arrayOf(price, book))
+                    showToast("更新:$book, 價格:$price")
                     cleanEditText()
                 } catch (e: Exception) {
                     showToast("更新失敗:$e")
                 }
         }
-        findViewById<Button>(R.id.btnDelete).setOnClickListener {
+        binding.btnDelete.setOnClickListener {
+            val book = binding.edBook.text.toString()
             // 判斷是否有填入書名
-            if (edBook.length() < 1)
+            if (book.isEmpty())
                 showToast("書名請勿留空")
             else
                 try {
                     // 從myTable資料表刪除相同書名的紀錄
-                    dbrw.execSQL("DELETE FROM myTable WHERE book LIKE '${edBook.text}'")
-                    showToast("刪除:${edBook.text}")
+                    dbrw.execSQL("DELETE FROM myTable WHERE book LIKE ?", arrayOf(book))
+                    showToast("刪除:$book")
                     cleanEditText()
                 } catch (e: Exception) {
                     showToast("刪除失敗:$e")
                 }
         }
-        findViewById<Button>(R.id.btnQuery).setOnClickListener {
-            // 若無輸入書名則SQL語法為查詢全部書籍，反之查詢該書名資料
-            val queryString = if (edBook.length() < 1)
-                "SELECT * FROM myTable"
+        binding.btnQuery.setOnClickListener {
+            val book = binding.edBook.text.toString()
+            val c = if (book.isEmpty())
+                dbrw.rawQuery("SELECT * FROM myTable", null)
             else
-                "SELECT * FROM myTable WHERE book LIKE '${edBook.text}'"
+                dbrw.rawQuery("SELECT * FROM myTable WHERE book LIKE ?", arrayOf(book))
 
-            val c = dbrw.rawQuery(queryString, null)
-            c.moveToFirst() // 從第一筆開始輸出
-            items.clear() // 清空舊資料
+            items.clear()
             showToast("共有${c.count}筆資料")
-            for (i in 0 until c.count) {
-                //加入新資料
-                items.add("書名:${c.getString(0)}\t\t\t\t價格:${c.getInt(1)}")
-                c.moveToNext() // 移動到下一筆
+            c.use { // 使用 use 區塊確保 Cursor 會自動關閉
+                if (it.moveToFirst()) {
+                    do {
+                        val bookNameIndex = it.getColumnIndex("book")
+                        val priceIndex = it.getColumnIndex("price")
+
+                        val bookName = if (bookNameIndex != -1) it.getString(bookNameIndex) else ""
+                        val priceValue = if(priceIndex != -1) it.getInt(priceIndex) else 0
+                        
+                        items.add("書名:$bookName\t\t\t\t價格:$priceValue")
+                    } while (it.moveToNext())
+                }
             }
-            adapter.notifyDataSetChanged() // 更新列表資料
-            c.close() // 關閉Cursor
+            adapter.notifyDataSetChanged()
         }
     }
 
@@ -120,7 +118,7 @@ class MainActivity : AppCompatActivity() {
 
     // 清空輸入的書名與價格
     private fun cleanEditText() {
-        findViewById<EditText>(R.id.edBook).setText("")
-        findViewById<EditText>(R.id.edPrice).setText("")
+        binding.edBook.setText("")
+        binding.edPrice.setText("")
     }
 }
